@@ -1,27 +1,32 @@
-// CÓDIGO FINAL, SIMPLES E FUNCIONAL PARA api/index.js
+// CÓDIGO FINAL E VALIDADO, ALINHADO COM A DOCUMENTAÇÃO DA VERCEL
 
-const express = require('express');
+// Importa o CORS para permitir chamadas do seu site
 const cors = require('cors');
-const app = express();
 
-// Habilita o CORS para todas as rotas
-app.use(cors());
+// Cria uma instância do CORS para ser usada como middleware
+const allowCors = fn => async (req, res) => {
+  res.setHeader('Access-Control-Allow-Credentials', true);
+  res.setHeader('Access-Control-Allow-Origin', '*'); // Permite qualquer origem
+  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version');
+  
+  if (req.method === 'OPTIONS') {
+    res.status(200).end();
+    return;
+  }
+  return await fn(req, res);
+};
 
-// A Vercel, por padrão, coloca este arquivo sob o prefixo /api.
-// Portanto, a rota '/' aqui, será acessível como '/api' no navegador.
-app.get('/', (req, res) => {
-  res.status(200).send('API está no ar. Use /medicamentos?nome=... para buscar.');
-});
+// A função principal que a Vercel irá executar
+const handler = async (req, res) => {
+  // Extrai o parâmetro 'nome' da URL da requisição
+  const { nome } = req.query;
 
-// A rota '/medicamentos' aqui, será acessível como '/api/medicamentos'.
-app.get('/medicamentos', async (req, res) => {
-  const nomeMedicamento = req.query.nome;
-
-  if (!nomeMedicamento) {
+  if (!nome) {
     return res.status(400).json({ error: 'O parâmetro "nome" é obrigatório.' });
   }
 
-  const url = `https://api.fda.gov/drug/label.json?search=openfda.brand_name:"${encodeURIComponent(nomeMedicamento )}"&limit=10`;
+  const url = `https://api.fda.gov/drug/label.json?search=openfda.brand_name:"${encodeURIComponent(nome )}"&limit=10`;
 
   try {
     const fdaResponse = await fetch(url);
@@ -36,6 +41,8 @@ app.get('/medicamentos', async (req, res) => {
     }
 
     const data = await fdaResponse.json();
+    // Adiciona o header de cache para otimizar
+    res.setHeader('Cache-Control', 's-maxage=3600, stale-while-revalidate');
     return res.status(200).json(data);
 
   } catch (error) {
@@ -43,7 +50,7 @@ app.get('/medicamentos', async (req, res) => {
     const errorMessage = error.message || 'Ocorreu um erro desconhecido.';
     return res.status(500).json({ error: 'Falha ao processar a requisição.', details: errorMessage });
   }
-});
+};
 
-// Exporta o app para a Vercel.
-module.exports = app;
+// Exporta a função principal, "embrulhada" com o middleware do CORS
+module.exports = allowCors(handler);
