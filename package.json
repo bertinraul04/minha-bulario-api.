@@ -1,8 +1,4 @@
 {
-  "name": "minha-api-fda-estavel",
-  "version": "1.0.0",
-  "description": "API estável para consulta de medicamentos na OpenFDA",
-  "main": "api/index.js",
   "dependencies": {
     "express": "4.18.2",
     "cors": "2.8.5"
