@@ -1,53 +1,50 @@
 const express = require('express');
-const chromium = require('@sparticuz/chromium');
-// Usar puppeteer-extra para o modo stealth
-const puppeteer = require('puppeteer-extra');
-const StealthPlugin = require('puppeteer-extra-plugin-stealth');
-
-// Ativar o plugin stealth
-puppeteer.use(StealthPlugin());
-
 const app = express();
 
+// Importa e habilita o CORS para permitir chamadas de outros domínios
+const cors = require('cors');
+app.use(cors());
+
+// Rota principal da API
 app.get('/medicamentos', async (req, res) => {
   const nomeMedicamento = req.query.nome;
+
+  // Validação para garantir que o parâmetro 'nome' foi enviado
   if (!nomeMedicamento) {
     return res.status(400).json({ error: 'O parâmetro "nome" é obrigatório.' });
   }
 
-  let browser = null;
+  // Constrói a URL para a API oficial da OpenFDA
+  const url = `https://api.fda.gov/drug/label.json?search=openfda.brand_name:"${encodeURIComponent(nomeMedicamento )}"&limit=10`;
+
   try {
-    browser = await puppeteer.launch({
-      args: chromium.args,
-      defaultViewport: chromium.defaultViewport,
-      executablePath: await chromium.executablePath(),
-      headless: chromium.headless,
-      ignoreHTTPSErrors: true,
-    });
+    // Faz a chamada para a API da OpenFDA
+    const fdaResponse = await fetch(url);
+    
+    // A OpenFDA retorna 404 se não encontrar nada. Tratamos isso como um sucesso com zero resultados.
+    if (fdaResponse.status === 404) {
+      return res.status(200).json({ results: [] });
+    }
 
-    const page = await browser.newPage();
-    const url = `https://consultas.anvisa.gov.br/#/bulario/q/?nomeProduto=${encodeURIComponent(nomeMedicamento )}`;
-    await page.goto(url, { waitUntil: 'networkidle2' });
+    // Se a resposta não for OK (ex: erro 500 da FDA), lança um erro.
+    if (!fdaResponse.ok) {
+      throw new Error(`A API da OpenFDA retornou um erro: ${fdaResponse.status}`);
+    }
 
-    // Espera por um seletor genérico que deve existir na página
-    await page.waitForSelector('body', { timeout: 15000 });
+    // Converte a resposta para JSON e a envia de volta para o seu site.
+    const data = await fdaResponse.json();
+    return res.status(200).json(data);
 
-    // Tenta encontrar os resultados
-    const medicamentos = await page.evaluate(() => {
-      const resultados = [];
-      const itens = document.querySelectorAll('.card-medicamento-container .ng-scope');
-      if (itens.length === 0) {
-        return null; // Retorna null se o container estiver vazio
-      }
-      
-      itens.forEach(item => {
-        const nome = item.querySelector('h3.font-weight-bold')?.innerText.trim();
-        const empresa = item.querySelector('p.ng-binding:nth-of-type(1)')?.innerText.trim();
-        const principioAtivo = item.querySelector('p.ng-binding:nth-of-type(2)')?.innerText.trim();
-        const linkElement = item.querySelector('a[ng-click*="abrirBula"]');
-        const clickAttr = linkElement ? linkElement.getAttribute('ng-click') : '';
-        const match = clickAttr.match(/'([^']+)'/);
-        const bulaId = match ? match[1] : null;
-        const bulaUrl = bulaId ? `https://consultas.anvisa.gov.br/api/consulta/medicamentos/arquivo/bula/parecer-publico/${bulaId}/?Authorization=` : null;
-        if (nome ) {
-          resultados.push({
+  } catch (error) {
+    console.error('Erro ao chamar a OpenFDA:', error);
+    return res.status(500).json({ error: 'Falha ao se comunicar com a API da OpenFDA.', details: error.message });
+  }
+});
+
+// Rota raiz para teste
+app.get('/', (req, res) => {
+  res.status(200).send('API está no ar. Use o endpoint /medicamentos?nome=... para buscar.');
+});
+
+// Exporta o app para a Vercel
+module.exports = app;
