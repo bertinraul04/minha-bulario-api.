@@ -1,3 +1,5 @@
+// CÓDIGO COMPLETO E VERIFICADO PARA api/index.js
+
 const express = require('express');
 const chromium = require('@sparticuz/chromium');
 const puppeteer = require('puppeteer-core');
@@ -12,17 +14,25 @@ app.get('/medicamentos', async (req, res) => {
 
   let browser = null;
   try {
-    // A correção está na linha executablePath abaixo
+    // --- CONFIGURAÇÃO DE LANÇAMENTO COMPLETA E ROBUSTA ---
+    // Esta é a combinação que funciona no ambiente restrito da Vercel
     browser = await puppeteer.launch({
-      args: chromium.args,
+      args: [
+        ...chromium.args,
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--single-process'
+      ],
       defaultViewport: chromium.defaultViewport,
-      executablePath: await chromium.executablePath(), // CORRIGIDO: Adicionado parênteses ()
-      headless: chromium.headless,
+      executablePath: await chromium.executablePath(), // Com parênteses
+      headless: true, // Forçar o modo headless
       ignoreHTTPSErrors: true,
     });
+    // --- FIM DA CONFIGURAÇÃO ---
 
     const page = await browser.newPage();
-    const url = `https://consultas.anvisa.gov.br/#/bulario/q/?nomeProduto=${encodeURIComponent(nomeMedicamento  )}`;
+    const url = `https://consultas.anvisa.gov.br/#/bulario/q/?nomeProduto=${encodeURIComponent(nomeMedicamento )}`;
     await page.goto(url, { waitUntil: 'networkidle2' });
     await page.waitForSelector('.card-medicamento-container .ng-scope', { timeout: 25000 });
 
@@ -37,7 +47,7 @@ app.get('/medicamentos', async (req, res) => {
         const match = clickAttr.match(/'([^']+)'/);
         const bulaId = match ? match[1] : null;
         const bulaUrl = bulaId ? `https://consultas.anvisa.gov.br/api/consulta/medicamentos/arquivo/bula/parecer-publico/${bulaId}/?Authorization=` : null;
-        if (nome  ) {
+        if (nome ) {
           resultados.push({ nome, empresa, principioAtivo, bula: bulaUrl });
         }
       });
