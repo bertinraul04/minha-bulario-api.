@@ -1,20 +1,18 @@
-// CÓDIGO FINAL E VERIFICADO PARA api/index.js
+// CÓDIGO CORRIGIDO E FINAL PARA api/index.js
 
 const express = require('express');
 const cors = require('cors');
-const app = express();
 
-// Habilita o CORS para todas as rotas
-app.use(cors());
+// Cria um "roteador" do Express. Esta é a forma correta de modularizar rotas.
+const router = express.Router();
 
-// A Vercel, por padrão, coloca todas as rotas sob /api.
-// Então, a rota raiz '/' dentro do nosso app corresponde a '/api' no mundo exterior.
-app.get('/', (req, res) => {
-  res.status(200).send('API está no ar. Use /medicamentos?nome=... para buscar.');
+// Rota de teste. Corresponderá a /api/teste
+router.get('/teste', (req, res) => {
+  res.status(200).send('A rota de teste da API está funcionando.');
 });
 
-// A rota '/medicamentos' dentro do nosso app corresponde a '/api/medicamentos'.
-app.get('/medicamentos', async (req, res) => {
+// Rota de medicamentos. Corresponderá a /api/medicamentos
+router.get('/medicamentos', async (req, res) => {
   const nomeMedicamento = req.query.nome;
 
   if (!nomeMedicamento) {
@@ -45,5 +43,14 @@ app.get('/medicamentos', async (req, res) => {
   }
 });
 
-// Exporta o app para a Vercel. Esta é a forma padrão.
+// Cria a aplicação principal do Express
+const app = express();
+
+// Habilita o CORS para todas as rotas
+app.use(cors());
+
+// Diz ao app para usar o nosso roteador para qualquer caminho que comece com /api
+app.use('/api', router);
+
+// Exporta o app principal para a Vercel
 module.exports = app;
