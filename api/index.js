@@ -1,49 +1,49 @@
 const express = require('express');
+const cors = require('cors');
 const app = express();
 
-// Importa e habilita o CORS para permitir chamadas de outros domínios
-const cors = require('cors');
+// Habilita o CORS para todas as rotas
 app.use(cors());
 
-// Rota principal da API
-app.get('/medicamentos', async (req, res) => {
+// Rota de teste para verificar se a API está online
+app.get('/api', (req, res) => {
+  res.status(200).send('API está no ar.');
+});
+
+// Rota principal para buscar medicamentos
+app.get('/api/medicamentos', async (req, res) => {
   const nomeMedicamento = req.query.nome;
 
-  // Validação para garantir que o parâmetro 'nome' foi enviado
   if (!nomeMedicamento) {
     return res.status(400).json({ error: 'O parâmetro "nome" é obrigatório.' });
   }
 
-  // Constrói a URL para a API oficial da OpenFDA
   const url = `https://api.fda.gov/drug/label.json?search=openfda.brand_name:"${encodeURIComponent(nomeMedicamento )}"&limit=10`;
 
   try {
-    // Faz a chamada para a API da OpenFDA
     const fdaResponse = await fetch(url);
-    
-    // A OpenFDA retorna 404 se não encontrar nada. Tratamos isso como um sucesso com zero resultados.
-    if (fdaResponse.status === 404) {
-      return res.status(200).json({ results: [] });
-    }
 
-    // Se a resposta não for OK (ex: erro 500 da FDA), lança um erro.
+    // Se a resposta da FDA não for OK, captura o texto do erro para depuração
     if (!fdaResponse.ok) {
-      throw new Error(`A API da OpenFDA retornou um erro: ${fdaResponse.status}`);
+      const errorText = await fdaResponse.text();
+      // O erro 404 da FDA é normal (não encontrado), então o tratamos como sucesso com zero resultados.
+      if (fdaResponse.status === 404) {
+        return res.status(200).json({ results: [] });
+      }
+      // Para todos os outros erros, retornamos uma mensagem clara.
+      throw new Error(`Erro da API da FDA: Status ${fdaResponse.status} - ${errorText}`);
     }
 
-    // Converte a resposta para JSON e a envia de volta para o seu site.
     const data = await fdaResponse.json();
     return res.status(200).json(data);
 
   } catch (error) {
-    console.error('Erro ao chamar a OpenFDA:', error);
-    return res.status(500).json({ error: 'Falha ao se comunicar com a API da OpenFDA.', details: error.message });
+    // Tratamento de erro robusto que captura qualquer falha (rede, DNS, etc.)
+    console.error("ERRO CRÍTICO NA API:", error);
+    // Garante que sempre haverá uma propriedade 'message'
+    const errorMessage = error.message || 'Ocorreu um erro desconhecido.';
+    return res.status(500).json({ error: 'Falha ao processar a requisição.', details: errorMessage });
   }
-});
-
-// Rota raiz para teste
-app.get('/', (req, res) => {
-  res.status(200).send('API está no ar. Use o endpoint /medicamentos?nome=... para buscar.');
 });
 
 // Exporta o app para a Vercel
