@@ -1,10 +1,15 @@
-// CÓDIGO COMPLETO E VERIFICADO PARA api/index.js
+// CÓDIGO FINAL E AUTOCONTIDO PARA api/index.js
 
 const express = require('express');
 const chromium = require('@sparticuz/chromium');
 const puppeteer = require('puppeteer-core');
 
 const app = express();
+
+// Rota de teste para garantir que o servidor está no ar
+app.get('/', (req, res) => {
+  res.status(200).send('API Bulario está no ar. Use /medicamentos?nome=... para buscar.');
+});
 
 app.get('/medicamentos', async (req, res) => {
   const nomeMedicamento = req.query.nome;
@@ -14,27 +19,21 @@ app.get('/medicamentos', async (req, res) => {
 
   let browser = null;
   try {
-    // --- CONFIGURAÇÃO DE LANÇAMENTO COMPLETA E ROBUSTA ---
-    // Esta é a combinação que funciona no ambiente restrito da Vercel
+    // Força o download de uma versão do Chromium que inclui todas as dependências.
+    await chromium.font('https://raw.githack.com/googlei18n/noto-cjk/main/NotoSansCJK-Regular.ttc' );
+
     browser = await puppeteer.launch({
-      args: [
-        ...chromium.args,
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage',
-        '--single-process'
-      ],
+      args: chromium.args,
       defaultViewport: chromium.defaultViewport,
-      executablePath: await chromium.executablePath(), // Com parênteses
-      headless: true, // Forçar o modo headless
+      executablePath: await chromium.executablePath(),
+      headless: chromium.headless,
       ignoreHTTPSErrors: true,
     });
-    // --- FIM DA CONFIGURAÇÃO ---
 
     const page = await browser.newPage();
     const url = `https://consultas.anvisa.gov.br/#/bulario/q/?nomeProduto=${encodeURIComponent(nomeMedicamento )}`;
     await page.goto(url, { waitUntil: 'networkidle2' });
-    await page.waitForSelector('.card-medicamento-container .ng-scope', { timeout: 25000 });
+    await page.waitForSelector('.card-medicamento-container .ng-scope', { timeout: 30000 });
 
     const medicamentos = await page.evaluate(() => {
       const resultados = [];
